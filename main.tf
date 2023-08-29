@@ -37,6 +37,7 @@ resource "aws_launch_template" "main" {
   user_data               = base64decode(templatefile("${path.module}/userdata.sh",
     {
       component           = var.component
+      env                 = var.env
     }))
 
   tag_specifications {
@@ -99,11 +100,80 @@ resource "aws_lb_target_group" "public" {
   count    = var.component == "frontend" ? 1 : 0
   name     = "${local.name_prefix}-public"
   port     = var.port
+  target_type = "ip"
   protocol = "HTTP"
-  vpc_id   = var.vpc_id
+  vpc_id   = var.default_vpc_id
 }
 resource "aws_lb_target_group_attachment" "public" {
-  target_group_arn = aws_lb_target_group.public[0].arn
-  target_id        = aws_instance.test.id
-  port             = 80
+  count             = var.component == "frontend" ? length(tolist(data.dns_a_record_set.private_alb.addrs)) : 0
+  target_group_arn  = aws_lb_target_group.public[0].arn
+  target_id         = element(tolist(data.dns_a_record_set.private_alb.addrs), count.index )
+  port              = 80
+  availability_zone = "all"
+}
+
+resource "aws_lb_listener_rule" "public" {
+  count        = var.component == "frontend" ? 1 : 0
+  listener_arn = var.public_listener
+  priority     = var.lb_priority
+
+  action {
+    type             = "forward"
+    target_group_arn = aws_lb_target_group.public[0].arn
+  }
+
+  condition {
+    host_header {
+      values = ["${var.env}.manasareddy.online"]
+    }
+  }
+}
+
+resource "aws_iam_policy" "main" {
+  name        = "${local.name_prefix}-policy"
+  path        = "/"
+  description = "${local.name_prefix}-policy"
+
+  policy = jsonencode({
+    "Version": "2012-10-17",
+    "Statement": [
+      {
+        "Sid": "VisualEditor0",
+        "Effect": "Allow",
+        "Action": [
+          "ssm:GetParameterHistory",
+          "ssm:GetParametersByPath",
+          "ssm:GetParameters",
+          "ssm:GetParameter"
+        ],
+        "Resource": local.policy_resources
+      },
+      {
+        "Sid": "VisualEditor1",
+        "Effect": "Allow",
+        "Action": "ssm:DescribeParameters",
+        "Resource": "*"
+      }
+    ]
+  })
+}
+
+resource "aws_iam_role" "main" {
+  name = "${local.name_prefix}-role"
+
+  assume_role_policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Action = "sts:AssumeRole"
+        Effect = "Allow"
+        Sid    = ""
+        Principal = {
+          Service = "ec2.amazonaws.com"
+        }
+      },
+    ]
+  })
+
+  tags = merge(local.tags, { Name = "${local.name_prefix}-role" })
 }
