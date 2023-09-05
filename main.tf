@@ -106,7 +106,7 @@ resource "aws_launch_template" "main" {
     name = "${local.name_prefix}-role"
   }
 
-  user_data               = base64decode(templatefile("${path.module}/userdata.sh",
+  user_data               = base64encode(templatefile("${path.module}/userdata.sh",
     {
       component           = var.component
       env                 = var.env
