@@ -107,7 +107,6 @@ resource "aws_iam_instance_profile" "main" {
   role = aws_iam_role.main.name
 }
 
-
 resource "aws_launch_template" "main" {
   name                    = local.name_prefix
   image_id                = data.aws_ami.ami.id
@@ -122,6 +121,18 @@ resource "aws_launch_template" "main" {
       component           = var.component
       env                 = var.env
     }))
+
+#  block_device_mappings {                                #comment this as we don't have a kms key created in aws
+#    device_name = "/dev/sda1"
+#
+#    ebs {
+#      delete_on_termination = "true"
+#      encrypted = "true"
+#      kms_key_id = var.kms_key_id
+#      volume_size = 10
+#      volume_type = "gp2"
+#    }
+#  }
 
   tag_specifications {
     resource_type = "instance"
